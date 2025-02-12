@@ -12,6 +12,7 @@
   "bugs": {
     "url": "https://github.com/actions/typescript-action/issues"
   },
+  "type": "module",
   "keywords": [
     "actions",
     "node",
@@ -43,7 +44,8 @@
     "testEnvironment": "node",
     "moduleFileExtensions": [
       "js",
-      "ts"
+      "ts",
+      "mts"
     ],
     "testMatch": [
       "**/*.test.ts"
@@ -53,7 +55,7 @@
       "/dist/"
     ],
     "transform": {
-      "^.+\\.ts$": "ts-jest"
+      "^.+\\.ts$": ["ts-jest", { "allowImportingTsExtensions": true }]
     },
     "coverageReporters": [
       "json-summary",

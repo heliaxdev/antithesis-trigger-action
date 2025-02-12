@@ -34,7 +34,7 @@ export function parse_additional_parameters(
   return result
 }
 
-async function getGithubTokenViaGithubApp(appId: string, privateKey: string, organization: string, repository: string): Promise<any> {
+async function getGithubTokenViaGithubApp(appId: string, privateKey: string, organization: string, repository: string): Promise<string> {
   const app = new App({ appId, privateKey }); 
 
   const { data: installation } = await app.octokit.request(
@@ -43,12 +43,16 @@ async function getGithubTokenViaGithubApp(appId: string, privateKey: string, org
 
   const octokitInstance = await app.getInstallationOctokit(installation.id);
 
-  const { token } = await octokitInstance.auth({
+  const auth = await octokitInstance.auth({
     type: 'installation',
     installationId: installation.id
-  }) as any;
+  });
 
-  return token;
+  if (auth != null && typeof auth === "object" && "token" in auth && typeof auth.token === "string")  {
+    return auth.token;
+  } else {
+    throw new Error("Failed to get token");
+  }
 }
 
 /**

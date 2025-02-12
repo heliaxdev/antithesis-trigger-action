@@ -1,6 +1,7 @@
 import { context, getOctokit } from '@actions/github'
 import * as core from '@actions/core'
 import axios from 'axios'
+import { App } from '@octokit/app';
 
 function parse_parts(
   line: string
@@ -31,6 +32,23 @@ export function parse_additional_parameters(
     }
   }
   return result
+}
+
+async function getGithubTokenViaGithubApp(appId: string, privateKey: string, installation_id: number): Promise<string> {
+  const app = new App({ appId, privateKey }); 
+
+  const octokitInstance = await app.getInstallationOctokit(installation_id);
+
+  const auth = await octokitInstance.auth({
+    type: 'installation',
+    installationId: installation_id
+  });
+
+  if (auth != null && typeof auth === "object" && "token" in auth && typeof auth.token === "string")  {
+    return auth.token;
+  } else {
+    throw new Error("Failed to get token");
+  }
 }
 
 /**
@@ -71,11 +89,23 @@ export async function run(): Promise<void> {
 
     core.info(`Desc: ${description}`)
 
-    // Build the request body
-    const github_token = core.getInput('github_token')
+    // Read github_token, github_app_id, github_app_private_key
+    let github_token = core.getInput('github_token')
+    const github_app_id = core.getInput('github_app_id')
+    const github_app_private_key = core.getInput('github_app_private_key')
+    const github_app_installation_id = core.getInput('github_app_installation_id')
+    
+
+    if (github_token != undefined) {
+      github_token = await getGithubTokenViaGithubApp(github_app_id, github_app_private_key, parseInt(github_app_installation_id))
+    }
 
     // Extract the branch
     const branch = context.ref?.replace('refs/heads/', '') ?? ''
+
+    // Extract github status target repo
+    const target_repo_owner = core.getInput('target_repo_owner')
+    const target_repo_name = core.getInput('target_repo_repo')
 
     core.info(`Source: ${branch}`)
 
@@ -89,6 +119,8 @@ export async function run(): Promise<void> {
     core.info(`Additional Parameters: ${JSON.stringify(additional_parameters)}`)
 
     const test_name = core.getInput('test_name')
+
+
 
     const body = {
       params: {
@@ -127,11 +159,11 @@ export async function run(): Promise<void> {
     // Only if we have a call back URL & a token , because we want to make sure
     // that Antithesis could update the status to done
     if (callback_url !== undefined && github_token !== undefined) {
-      let owner = context?.payload?.repository?.owner?.name
+      let owner = target_repo_owner || context?.payload?.repository?.owner?.name
       if (owner === undefined)
         owner = context?.payload?.repository?.owner?.login
 
-      const repo = context?.payload?.repository?.name
+      const repo = target_repo_name || context?.payload?.repository?.name
 
       try {
         const octokit = getOctokit(github_token)

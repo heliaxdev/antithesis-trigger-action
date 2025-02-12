@@ -1,6 +1,7 @@
 import { context, getOctokit } from '@actions/github'
 import * as core from '@actions/core'
 import axios from 'axios'
+import { App } from '@octokit/app';
 
 function parse_parts(
   line: string
@@ -31,6 +32,23 @@ export function parse_additional_parameters(
     }
   }
   return result
+}
+
+async function getGithubTokenViaGithubApp(appId: string, privateKey: string, organization: string, repository: string): Promise<any> {
+  const app = new App({ appId, privateKey }); 
+
+  const { data: installation } = await app.octokit.request(
+    `GET /repos/${organization}/${repository}/installation`
+  );
+
+  const octokitInstance = await app.getInstallationOctokit(installation.id);
+
+  const { token } = await octokitInstance.auth({
+    type: 'installation',
+    installationId: installation.id
+  }) as any;
+
+  return token;
 }
 
 /**
@@ -71,11 +89,19 @@ export async function run(): Promise<void> {
 
     core.info(`Desc: ${description}`)
 
-    // Build the request body
+    // Read github_token, github_app_id, github_app_private_key
     const github_token = core.getInput('github_token')
+    const github_app_id = core.getInput('github_app_id')
+    const github_app_private_key = core.getInput('github_app_private_key')
+
+
 
     // Extract the branch
     const branch = context.ref?.replace('refs/heads/', '') ?? ''
+
+    // Extract github status target repo
+    const target_repo_owner = core.getInput('target_repo_owner')
+    const target_repo_name = core.getInput('target_repo_repo')
 
     core.info(`Source: ${branch}`)
 
@@ -89,6 +115,8 @@ export async function run(): Promise<void> {
     core.info(`Additional Parameters: ${JSON.stringify(additional_parameters)}`)
 
     const test_name = core.getInput('test_name')
+
+
 
     const body = {
       params: {
@@ -127,11 +155,11 @@ export async function run(): Promise<void> {
     // Only if we have a call back URL & a token , because we want to make sure
     // that Antithesis could update the status to done
     if (callback_url !== undefined && github_token !== undefined) {
-      let owner = context?.payload?.repository?.owner?.name
+      let owner = target_repo_owner || context?.payload?.repository?.owner?.name
       if (owner === undefined)
         owner = context?.payload?.repository?.owner?.login
 
-      const repo = context?.payload?.repository?.name
+      const repo = target_repo_name || context?.payload?.repository?.name
 
       try {
         const octokit = getOctokit(github_token)

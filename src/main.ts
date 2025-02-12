@@ -34,18 +34,14 @@ export function parse_additional_parameters(
   return result
 }
 
-async function getGithubTokenViaGithubApp(appId: string, privateKey: string, organization: string, repository: string): Promise<string> {
+async function getGithubTokenViaGithubApp(appId: string, privateKey: string, installation_id: number): Promise<string> {
   const app = new App({ appId, privateKey }); 
 
-  const { data: installation } = await app.octokit.request(
-    `GET /repos/${organization}/${repository}/installation`
-  );
-
-  const octokitInstance = await app.getInstallationOctokit(installation.id);
+  const octokitInstance = await app.getInstallationOctokit(installation_id);
 
   const auth = await octokitInstance.auth({
     type: 'installation',
-    installationId: installation.id
+    installationId: installation_id
   });
 
   if (auth != null && typeof auth === "object" && "token" in auth && typeof auth.token === "string")  {
@@ -94,11 +90,15 @@ export async function run(): Promise<void> {
     core.info(`Desc: ${description}`)
 
     // Read github_token, github_app_id, github_app_private_key
-    const github_token = core.getInput('github_token')
+    let github_token = core.getInput('github_token')
     const github_app_id = core.getInput('github_app_id')
     const github_app_private_key = core.getInput('github_app_private_key')
+    const github_app_installation_id = core.getInput('github_app_installation_id')
+    
 
-
+    if (github_token != undefined) {
+      github_token = await getGithubTokenViaGithubApp(github_app_id, github_app_private_key, parseInt(github_app_installation_id))
+    }
 
     // Extract the branch
     const branch = context.ref?.replace('refs/heads/', '') ?? ''

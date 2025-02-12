@@ -12,7 +12,6 @@
   "bugs": {
     "url": "https://github.com/actions/typescript-action/issues"
   },
-  "type": "module",
   "keywords": [
     "actions",
     "node",
